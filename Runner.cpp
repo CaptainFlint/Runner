@@ -5,9 +5,10 @@
 #include "Runner.h"
 
 // Global variables
-HINSTANCE hAppInstance;
-HICON hIcon32;
-HICON hIcon16;
+HINSTANCE hAppInstance;         // Application instance
+HICON hIcon32 = NULL;           // Application icon 32x32
+HICON hIcon16 = NULL;           // Application icon 16x16
+HFONT hUnderlinedFont = NULL;   // Underlined font for drawing hyperlinks
 
 // Forward declarations of functions included in this code module:
 INT_PTR CALLBACK MainDlgProc(HWND, UINT, WPARAM, LPARAM);
@@ -276,6 +277,15 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 				DefWindowProc(hDlg, message, wParam, lParam);
 			break;
 		}
+
+	case WM_DESTROY:
+		{
+			DestroyIcon(hIcon32);
+			DestroyIcon(hIcon16);
+			if (hUnderlinedFont != NULL)
+				DeleteObject(hUnderlinedFont);
+			break;
+		}
 	}
 
 	return FALSE;
@@ -289,15 +299,58 @@ INT_PTR CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 	switch (message)
 	{
 	case WM_INITDIALOG:
-		return (INT_PTR)TRUE;
-
-	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
 		{
-			EndDialog(hDlg, LOWORD(wParam));
+			// Dialog initialization
+			HWND hHomepage = GetDlgItem(hDlg, IDC_HOMEPAGE);
+			HWND hEmail = GetDlgItem(hDlg, IDC_EMAIL);
+			// Set the "hand" cursor over the hyperlink controls
+			HCURSOR hHandCursor = (HCURSOR)LoadImage(NULL, MAKEINTRESOURCE(OCR_HAND), IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+			SetClassLongPtr(hHomepage, GCLP_HCURSOR, (LPARAM)hHandCursor);
+			SetClassLongPtr(hEmail, GCLP_HCURSOR, (LPARAM)hHandCursor);
+			// Lazy initialization of the hyperlinks-specific underlined font
+			if (hUnderlinedFont == NULL)
+			{
+				LOGFONT lf;
+				hUnderlinedFont = GetWindowFont(hHomepage);
+				GetObject(hUnderlinedFont, sizeof(LOGFONT), &lf);
+				lf.lfUnderline = 1;
+				hUnderlinedFont = CreateFontIndirect(&lf);
+			}
+			// Set the font to the hyperlink controls
+			SetWindowFont(hHomepage, hUnderlinedFont, FALSE);
+			SetWindowFont(hEmail, hUnderlinedFont, FALSE);
 			return (INT_PTR)TRUE;
 		}
-		break;
+
+	case WM_CTLCOLORSTATIC:
+		{
+			if (((HWND)lParam == GetDlgItem(hDlg, IDC_HOMEPAGE)) || ((HWND)lParam == GetDlgItem(hDlg, IDC_EMAIL)))
+			{
+				// Draw hyperlinks using blue color
+				SetTextColor((HDC)wParam, RGB(0, 0, 255));
+				SetBkMode((HDC)wParam, TRANSPARENT);
+				return (INT_PTR)GetStockObject(NULL_BRUSH);
+			}
+			break;
+		}
+
+	case WM_COMMAND:
+		{
+			if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+			{
+				EndDialog(hDlg, LOWORD(wParam));
+				return (INT_PTR)TRUE;
+			}
+			else if (LOWORD(wParam) == IDC_HOMEPAGE)
+			{
+				ShellExecute(hDlg, NULL, L"http://flint-inc.ru/", NULL, NULL, SW_SHOW);
+			}
+			else if (LOWORD(wParam) == IDC_EMAIL)
+			{
+				ShellExecute(hDlg, NULL, L"mailto:support@flint-inc.ru", NULL, NULL, SW_SHOW);
+			}
+			break;
+		}
 	}
 	return (INT_PTR)FALSE;
 }
