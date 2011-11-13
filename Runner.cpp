@@ -22,6 +22,18 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 	UNREFERENCED_PARAMETER(lpCmdLine);
 	UNREFERENCED_PARAMETER(nCmdShow);
 
+	HWND hPrev = FindWindow(L"CFS_RunnerClass", NULL);
+	if (hPrev != NULL)
+	{
+		SetForegroundWindow(hPrev);
+		return 0;
+	}
+
+	WNDCLASS wc;
+	GetClassInfo(hInstance, L"#32770", &wc);
+	wc.lpszClassName = L"CFS_RunnerClass";
+	RegisterClass(&wc);
+
 	hAppInstance = hInstance;
 	DialogBox(hInstance, MAKEINTRESOURCE(IDD_MAIN_DIALOG), NULL, MainDlgProc);
 	return 0;
