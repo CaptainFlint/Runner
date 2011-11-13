@@ -22,20 +22,30 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR lpCmd
 	UNREFERENCED_PARAMETER(lpCmdLine);
 	UNREFERENCED_PARAMETER(nCmdShow);
 
-	HWND hPrev = FindWindow(L"CFS_RunnerClass", NULL);
-	if (hPrev != NULL)
-	{
-		SetForegroundWindow(hPrev);
-		return 0;
-	}
-
-	WNDCLASS wc;
-	GetClassInfo(hInstance, L"#32770", &wc);
-	wc.lpszClassName = L"CFS_RunnerClass";
-	RegisterClass(&wc);
+	InitCommonControls();
 
 	hAppInstance = hInstance;
-	DialogBox(hInstance, MAKEINTRESOURCE(IDD_MAIN_DIALOG), NULL, MainDlgProc);
+	HWND hDlg = CreateDialog(hInstance, MAKEINTRESOURCE(IDD_MAIN_DIALOG), NULL, MainDlgProc);
+
+	if (!RegisterHotKey(hDlg, 0, MOD_WIN, 'R'))
+	{
+		const size_t MAX_BUF = 32768;
+		WCHAR msg[MAX_BUF];
+		swprintf_s(msg, L"Не удалось зарегистрировать Win+R (код ошибки %d)", GetLastError());
+		MessageBox(NULL, msg, L"Runner", MB_ICONERROR | MB_OK);
+		return 1;
+	}
+
+	MSG msg = {0};
+	while (GetMessage(&msg, NULL, 0, 0))
+	{
+		if (!IsDialogMessage(hDlg, &msg))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+	}
+	UnregisterHotKey(NULL, 0);
 	return 0;
 }
 
@@ -67,55 +77,7 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			AppendMenu(hSysMenu, MF_SEPARATOR, 0, NULL);
 			AppendMenu(hSysMenu, MF_STRING, IDM_ABOUTBOX, L"О программе…");
 
-			/*
-				Commands are stored in registry as follows:
-				1) MRUList contains sequence of letters, the order defines the order of command lines.
-				2) Each letter defines a parameter with this letter as name; value is the command line with \1 appended to the end.
-				3) When an older command is run, it's position is changed to first (the top of the list); MRUList is updated accordingly.
-				4) When a new command is run:
-				  a) if a vacant letter is present, it is allocated for the new command and added to the first position of MRUList;
-				  b) if all 26 letters are present, the last from MRUList is reused: the new command replaces the older contents,
-				     the letter is shifted to the first position.
-			*/
-			// Read the list of MRU command lines from the registry and fill in the drop-down list of history
-			try
-			{
-				// First, read the MRUList
-				if (RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU", 0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS)
-					throw 1;
-				WCHAR mru[32];
-				DWORD mru_len = 32 * sizeof(WCHAR);
-				if (RegQueryValueEx(hKey, L"MRUList", NULL, NULL, (BYTE*)mru, &mru_len) != ERROR_SUCCESS)
-					throw 1;
-				mru_len /= sizeof(WCHAR);
-				// Now reading data for each letter and append the command line to the combobox
-				WCHAR name[2];
-				name[1] = L'\0';
-				for (DWORD i = 0; i < mru_len; ++i)
-				{
-					name[0] = mru[i];
-					DWORD BufSz = MAX_BUF * sizeof(WCHAR);
-					if (RegQueryValueEx(hKey, name, NULL, NULL, (BYTE*)InputStr, &BufSz) != ERROR_SUCCESS)
-						throw 1;
-					size_t len = wcslen(InputStr);
-					// Remove the \1 suffix
-					if ((InputStr[len - 2] == L'\\') && (InputStr[len - 1] == L'1'))
-						InputStr[len - 2] = L'\0';
-					int idx = ComboBox_AddString(hComboBox, (LPARAM)InputStr);
-					// Remember the letter this command is stored under
-					ComboBox_SetItemData(hComboBox, idx, mru[i]);
-					if (i == 0)
-						ComboBox_SetText(hComboBox, InputStr);
-				}
-			}
-			catch (...)
-			{
-			}
-			if (hKey != NULL)
-				RegCloseKey(hKey);
-			// Set focus to the command combobox
-			SetFocus(hComboBox);
-			return (INT_PTR)FALSE;
+			return (INT_PTR)TRUE;
 		}
 
 	case WM_COMMAND:
@@ -212,8 +174,6 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 						if (hKey != NULL)
 							RegCloseKey(hKey);
 					}
-					// Close the dialog
-					EndDialog(hDlg, IDOK);
 				}
 				else
 				{
@@ -232,9 +192,9 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			else if (LOWORD(wParam) == IDCANCEL)
 			{
 				////////////////////////////////////////////////////////////////////////////////
-				// Cancel is pressed: close the dialog
+				// Cancel is pressed: hide the dialog
 
-				EndDialog(hDlg, IDCANCEL);
+				ShowWindow(hDlg, SW_HIDE);
 				return (INT_PTR)TRUE;
 			}
 			else if (LOWORD(wParam) == IDC_AS_ADMIN)
@@ -287,6 +247,70 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 				DialogBox(hAppInstance,  MAKEINTRESOURCE(IDD_ABOUTBOX), hDlg, AboutProc);
 			else
 				DefWindowProc(hDlg, message, wParam, lParam);
+			break;
+		}
+
+	case WM_HOTKEY:
+		{
+			if (IsWindowVisible(hDlg))
+				SetForegroundWindow(hDlg);
+			else
+			{
+				// Reinitialize the dialog controls
+				Button_SetCheck(GetDlgItem(hDlg, IDC_AS_ADMIN), FALSE);
+				Button_SetElevationRequiredState(GetDlgItem(hDlg, IDOK), FALSE);
+				ComboBox_ResetContent(hComboBox);
+
+				/*
+					Commands are stored in registry as follows:
+					1) MRUList contains sequence of letters, the order defines the order of command lines.
+					2) Each letter defines a parameter with this letter as name; value is the command line with \1 appended to the end.
+					3) When an older command is run, it's position is changed to first (the top of the list); MRUList is updated accordingly.
+					4) When a new command is run:
+					  a) if a vacant letter is present, it is allocated for the new command and added to the first position of MRUList;
+					  b) if all 26 letters are present, the last from MRUList is reused: the new command replaces the older contents,
+						 the letter is shifted to the first position.
+				*/
+				// Read the list of MRU command lines from the registry and fill in the drop-down list of history
+				try
+				{
+					// First, read the MRUList
+					if (RegOpenKeyEx(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU", 0, KEY_QUERY_VALUE, &hKey) != ERROR_SUCCESS)
+						throw 1;
+					WCHAR mru[32];
+					DWORD mru_len = 32 * sizeof(WCHAR);
+					if (RegQueryValueEx(hKey, L"MRUList", NULL, NULL, (BYTE*)mru, &mru_len) != ERROR_SUCCESS)
+						throw 1;
+					mru_len /= sizeof(WCHAR);
+					// Now reading data for each letter and append the command line to the combobox
+					WCHAR name[2];
+					name[1] = L'\0';
+					for (DWORD i = 0; i < mru_len; ++i)
+					{
+						name[0] = mru[i];
+						DWORD BufSz = MAX_BUF * sizeof(WCHAR);
+						if (RegQueryValueEx(hKey, name, NULL, NULL, (BYTE*)InputStr, &BufSz) != ERROR_SUCCESS)
+							throw 1;
+						size_t len = wcslen(InputStr);
+						// Remove the \1 suffix
+						if ((InputStr[len - 2] == L'\\') && (InputStr[len - 1] == L'1'))
+							InputStr[len - 2] = L'\0';
+						int idx = ComboBox_AddString(hComboBox, (LPARAM)InputStr);
+						// Remember the letter this command is stored under
+						ComboBox_SetItemData(hComboBox, idx, mru[i]);
+						if (i == 0)
+							ComboBox_SetText(hComboBox, InputStr);
+					}
+				}
+				catch (...)
+				{
+				}
+				if (hKey != NULL)
+					RegCloseKey(hKey);
+				// Set focus to the command combobox
+				SetFocus(hComboBox);
+				ShowWindow(hDlg, SW_SHOW);
+			}
 			break;
 		}
 
