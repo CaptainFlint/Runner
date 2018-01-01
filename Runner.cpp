@@ -8,6 +8,8 @@
 HINSTANCE hAppInstance;         // Application instance
 HICON hIcon32 = NULL;           // Application icon 32x32
 HICON hIcon16 = NULL;           // Application icon 16x16
+HICON hHomepageIcon = NULL;
+HICON hEmailIcon = NULL;
 HFONT hUnderlinedFont = NULL;   // Underlined font for drawing hyperlinks
 
 // Forward declarations of functions included in this code module:
@@ -67,8 +69,8 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 			HMENU hSysMenu;
 
 			// Load and set window icon
-			hIcon16 = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_RUNNER), IMAGE_ICON, 16, 16, LR_DEFAULTCOLOR);
-			hIcon32 = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_RUNNER), IMAGE_ICON, 32, 32, LR_DEFAULTCOLOR);
+			hIcon16 = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_RUNNER), IMAGE_ICON, GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_DEFAULTCOLOR);
+			hIcon32 = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_RUNNER), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
 			SendMessage(hDlg, WM_SETICON, ICON_SMALL, (LPARAM)hIcon16);
 			SendMessage(hDlg, WM_SETICON, ICON_BIG, (LPARAM)hIcon32);
 
@@ -318,6 +320,8 @@ INT_PTR CALLBACK MainDlgProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lPar
 		{
 			DestroyIcon(hIcon32);
 			DestroyIcon(hIcon16);
+			DestroyIcon(hHomepageIcon);
+			DestroyIcon(hEmailIcon);
 			if (hUnderlinedFont != NULL)
 				DeleteObject(hUnderlinedFont);
 			break;
@@ -339,6 +343,14 @@ INT_PTR CALLBACK AboutProc(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam
 			// Dialog initialization
 			HWND hHomepage = GetDlgItem(hDlg, IDC_HOMEPAGE);
 			HWND hEmail = GetDlgItem(hDlg, IDC_EMAIL);
+			HWND hHomepageIconCtl = GetDlgItem(hDlg, IDC_HOMEPAGE_ICON);
+			HWND hEmailIconCtl = GetDlgItem(hDlg, IDC_MAIL_ICON);
+			if (hHomepageIcon == NULL)
+				hHomepageIcon = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_HOMEPAGE_ICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+			if (hEmailIcon == NULL)
+				hEmailIcon = (HICON)LoadImage(hAppInstance, MAKEINTRESOURCE(IDI_MAIL_ICON), IMAGE_ICON, GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_DEFAULTCOLOR);
+			SendMessage(hHomepageIconCtl, STM_SETICON, (WPARAM)hHomepageIcon, NULL);
+			SendMessage(hEmailIconCtl, STM_SETICON, (WPARAM)hEmailIcon, NULL);
 			// Set the "hand" cursor over the hyperlink controls
 			HCURSOR hHandCursor = (HCURSOR)LoadImage(NULL, MAKEINTRESOURCE(OCR_HAND), IMAGE_CURSOR, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
 			SetClassLongPtr(hHomepage, GCLP_HCURSOR, (LPARAM)hHandCursor);
