@@ -2,7 +2,14 @@
 
 This is a simple program to replace/imitate the system Start/Run dialog.
 
-When you disable the Win+? hotkeys via registry, Win+R gets disabled too. I'm using this setting, but I find Win+R very useful, and didn't want to lose it. That's why I wrote this program.
+There is a registry tweak to disable the Win+? hotkeys:
+
+    Windows Registry Editor Version 5.00
+
+    [HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer]
+    "NoWinKeys"=dword:00000001
+
+Some people use it to free these shotcuts for their personal use. However, Win+R which opens the Run dialog gets disabled too by this tweak. I'm myself using this setting, but I find Win+R very useful, and didn't want to lose it. That's why I wrote this program, which uses the same shortcut and imitates the standard Run dialog. Note that if you open the Start menu and click the Run item, it will still open the standard dialog, not the Runner one!
 
 In addition it has an option to run the program with Administrator permissions, which the standard dialog lacks, so this is another reason to use it. However, if you didn't disable Win+R, Runner will not be able to start, failing to register this shortcut. There is a plan to add an option for using another hotkey, but it's not implemented yet.
 
